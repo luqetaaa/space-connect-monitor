@@ -336,13 +336,3 @@ FIAP Global Solution 2026 – Space Connect.
 Material disponibilizado pela disciplina.
 
 ---
-
-# 14. Evidências de Funcionamento
-
-Adicionar:
-
-* Print do Dashboard
-* Print do Cadastro
-* Print dos Alertas
-* Print da API Swagger
-* Print do Banco de Dados
