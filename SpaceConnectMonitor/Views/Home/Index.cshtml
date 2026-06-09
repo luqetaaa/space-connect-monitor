@@ -1,0 +1,183 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<section class="hero">
+    <h1>Monitoramento de Eventos Espaciais e Ambientais</h1>
+    <p>Protótipo em C# para análise de dados simulados de satélites, sensores e sistemas de monitoramento.</p>
+</section>
+
+<section class="cards" id="cards"></section>
+
+<section class="panel">
+    <h2>Cadastrar Evento Detectado</h2>
+
+    <form id="formEvento" class="form-grid">
+        <div class="campo">
+            <label>Nome do evento</label>
+            <input name="nomeEvento" placeholder="Ex: Foco de calor detectado" value="Foco de calor detectado" required />
+        </div>
+
+        <div class="campo">
+            <label>Tipo do evento</label>
+            <input name="tipoEvento" placeholder="Ex: Queimada, Seca, Enchente" value="Queimada" required />
+        </div>
+
+        <div class="campo">
+            <label>Região monitorada</label>
+            <input name="regiao" placeholder="Ex: Amazônia Legal" value="Amazônia Legal" required />
+        </div>
+
+        <div class="campo">
+            <label>Latitude</label>
+            <input name="latitude" type="number" step="0.0001" placeholder="Ex: -3.4653" value="-3.4653" required />
+        </div>
+
+        <div class="campo">
+            <label>Longitude</label>
+            <input name="longitude" type="number" step="0.0001" placeholder="Ex: -62.2159" value="-62.2159" required />
+        </div>
+
+        <div class="campo">
+            <label>Data da detecção</label>
+            <input name="dataDeteccao" type="date" required />
+        </div>
+
+        <div class="campo">
+            <label>Intensidade do evento</label>
+            <input name="intensidade" type="number" min="0" max="100" placeholder="0 a 100" value="82" required />
+        </div>
+
+        <div class="campo">
+            <label>Tipo do sensor</label>
+            <select name="sensorTipo">
+                <option value="Satelite">Satélite</option>
+                <option value="Rover">Rover</option>
+            </select>
+        </div>
+
+        <div class="campo">
+            <label>Nome do sensor</label>
+            <input name="sensorNome" placeholder="Ex: Aqua-1" value="Aqua-1" required />
+        </div>
+
+        <div class="campo botao-campo">
+            <label>&nbsp;</label>
+            <button type="submit">Cadastrar e Classificar</button>
+        </div>
+    </form>
+
+    <p id="mensagem"></p>
+</section>
+
+<section class="grid-two">
+    <div class="panel">
+        <h2>Eventos Monitorados</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Evento</th>
+                    <th>Tipo</th>
+                    <th>Região</th>
+                    <th>Data</th>
+                    <th>Risco</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="eventos"></tbody>
+        </table>
+    </div>
+
+    <div class="panel">
+        <h2>Alertas Prioritários</h2>
+        <div id="alertas" class="alert-list"></div>
+    </div>
+</section>
+
+<script>
+document.querySelector('[name="dataDeteccao"]').valueAsDate = new Date();
+
+async function carregarDashboard() {
+    const res = await fetch('/api/dashboard/resumo');
+    const data = await res.json();
+
+    document.getElementById('cards').innerHTML = `
+        <div class="card"><span>Total de eventos</span><strong>${data.totalEventos}</strong></div>
+        <div class="card"><span>Críticos</span><strong>${data.totalCriticos}</strong></div>
+        <div class="card"><span>Moderados</span><strong>${data.totalModerados}</strong></div>
+        <div class="card"><span>Risco médio</span><strong>${data.riscoMedio}</strong></div>
+        <div class="card"><span>Região mais afetada</span><strong>${data.regiaoMaisAfetada}</strong></div>
+    `;
+}
+
+async function carregarEventos() {
+    const res = await fetch('/api/eventos');
+    const data = await res.json();
+
+    document.getElementById('eventos').innerHTML = data.map(e => `
+        <tr>
+            <td>${e.nomeEvento}</td>
+            <td>${e.tipoEvento}</td>
+            <td>${e.regiao}</td>
+            <td>${new Date(e.dataDeteccao).toLocaleDateString('pt-BR')}</td>
+            <td><span class="badge ${e.classificacao.toLowerCase()}">${e.nivelRisco} - ${e.classificacao}</span></td>
+            <td>${e.status}</td>
+        </tr>
+    `).join('');
+}
+
+async function carregarAlertas() {
+    const res = await fetch('/api/alertas');
+    const data = await res.json();
+
+    document.getElementById('alertas').innerHTML = data.map(a => `
+        <div class="alerta">
+            <strong>${a.titulo}</strong>
+            <p>${a.mensagem}</p>
+            <small>Prioridade: ${a.prioridade}</small>
+        </div>
+    `).join('') || '<p>Nenhum alerta prioritário no momento.</p>';
+}
+
+async function carregarTudo() {
+    await carregarDashboard();
+    await carregarEventos();
+    await carregarAlertas();
+}
+
+document.getElementById('formEvento').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const form = new FormData(e.target);
+    const body = Object.fromEntries(form.entries());
+
+    body.latitude = Number(body.latitude);
+    body.longitude = Number(body.longitude);
+    body.intensidade = Number(body.intensidade);
+
+    const res = await fetch('/api/eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+
+    const data = await res.json();
+    const msg = document.getElementById('mensagem');
+
+    if (!res.ok) {
+        msg.textContent = data.mensagem || 'Erro ao cadastrar evento.';
+        msg.className = 'erro';
+        return;
+    }
+
+    msg.textContent = 'Evento cadastrado com sucesso.';
+    msg.className = 'sucesso';
+
+    await carregarTudo();
+});
+
+carregarTudo().catch(err => {
+    document.getElementById('mensagem').textContent = 'Erro ao carregar dados. Verifique o banco e a API.';
+    console.error(err);
+});
+</script>
